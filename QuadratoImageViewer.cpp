@@ -25,18 +25,25 @@ int g_dragStartY = 0;
 std::wstring g_currentImagePath = L"";
 ULONG_PTR g_gdiplusToken = 0;
 
-const int WINDOW_SIZE = 150;
+int g_WINDOW_SIZE = 150;
 const int TOOLBAR_HEIGHT = 25;
-const int CANVAS_HEIGHT = WINDOW_SIZE - TOOLBAR_HEIGHT;
 
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void LoadImage(const std::wstring& filePath);
 void DrawPlaceholder(HDC hdc);
 std::wstring OpenFileDialog();
+void ResizeWindow(int newSize);
+void ShowSizeMenu(HWND hWnd, int x, int y);
 
 #define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
 #define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
+
+// Menu item IDs
+#define ID_SIZE_100 1010
+#define ID_SIZE_150 1011
+#define ID_SIZE_200 1012
+#define ID_SIZE_250 1013
 
 // Main window procedure
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -52,7 +59,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             L"",
             SS_OWNERDRAW | WS_VISIBLE | WS_CHILD,
             0, 0,
-            WINDOW_SIZE, CANVAS_HEIGHT,
+            g_WINDOW_SIZE, g_WINDOW_SIZE - TOOLBAR_HEIGHT,
             hWnd,
             (HMENU)1001,
             GetModuleHandle(NULL),
@@ -67,8 +74,8 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             L"STATIC",
             L"",
             SS_LEFT | WS_VISIBLE | WS_CHILD,
-            0, CANVAS_HEIGHT,
-            WINDOW_SIZE, TOOLBAR_HEIGHT,
+            0, g_WINDOW_SIZE - TOOLBAR_HEIGHT,
+            g_WINDOW_SIZE, TOOLBAR_HEIGHT,
             hWnd,
             (HMENU)1002,
             GetModuleHandle(NULL),
@@ -83,8 +90,8 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             L"STATIC",
             L"No image",
             SS_LEFT | WS_VISIBLE | WS_CHILD,
-            3, CANVAS_HEIGHT + 4,
-            WINDOW_SIZE - 70, TOOLBAR_HEIGHT - 8,
+            3, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 4,
+            g_WINDOW_SIZE - 70, TOOLBAR_HEIGHT - 8,
             hWnd,
             (HMENU)1003,
             GetModuleHandle(NULL),
@@ -99,7 +106,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             L"BUTTON",
             L"Load",
             BS_PUSHBUTTON | WS_VISIBLE | WS_CHILD,
-            WINDOW_SIZE - 65, CANVAS_HEIGHT + 3,
+            g_WINDOW_SIZE - 65, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 3,
             30, TOOLBAR_HEIGHT - 6,
             hWnd,
             (HMENU)1004,
@@ -115,7 +122,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             L"BUTTON",
             L"X",
             BS_PUSHBUTTON | WS_VISIBLE | WS_CHILD,
-            WINDOW_SIZE - 30, CANVAS_HEIGHT + 3,
+            g_WINDOW_SIZE - 30, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 3,
             25, TOOLBAR_HEIGHT - 6,
             hWnd,
             (HMENU)1005,
@@ -144,7 +151,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 Graphics graphics(pDis->hDC);
                 graphics.SetSmoothingMode(SmoothingModeHighQuality);
-                graphics.DrawImage(g_pImage, 0, 0, WINDOW_SIZE, CANVAS_HEIGHT);
+                graphics.DrawImage(g_pImage, 0, 0, g_WINDOW_SIZE, g_WINDOW_SIZE - TOOLBAR_HEIGHT);
             }
             else
             {
@@ -152,6 +159,16 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             return TRUE;
         }
+        break;
+    }
+
+    case WM_RBUTTONUP:
+    {
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+        POINT pt = { x, y };
+        ClientToScreen(hWnd, &pt);
+        ShowSizeMenu(hWnd, pt.x, pt.y);
         break;
     }
 
@@ -213,6 +230,21 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         else if (wmId == 1005) // Close button
         {
             PostMessage(hWnd, WM_CLOSE, 0, 0);
+        }
+        else if (wmId >= ID_SIZE_100 && wmId <= ID_SIZE_250)
+        {
+            int newSize = 0;
+            switch (wmId)
+            {
+            case ID_SIZE_100: newSize = 100; break;
+            case ID_SIZE_150: newSize = 150; break;
+            case ID_SIZE_200: newSize = 200; break;
+            case ID_SIZE_250: newSize = 250; break;
+            }
+            if (newSize > 0)
+            {
+                ResizeWindow(newSize);
+            }
         }
         break;
     }
@@ -303,7 +335,7 @@ void DrawPlaceholder(HDC hdc)
 
     // Draw background
     SolidBrush bgBrush(Color(255, 32, 32, 32));
-    graphics.FillRectangle(&bgBrush, 0, 0, WINDOW_SIZE, CANVAS_HEIGHT);
+    graphics.FillRectangle(&bgBrush, 0, 0, g_WINDOW_SIZE, g_WINDOW_SIZE - TOOLBAR_HEIGHT);
 
     // Draw text
     FontFamily fontFamily(L"Arial");
@@ -313,7 +345,7 @@ void DrawPlaceholder(HDC hdc)
     format.SetAlignment(StringAlignmentCenter);
     format.SetLineAlignment(StringAlignmentCenter);
 
-    RectF rect(0, 0, (REAL)WINDOW_SIZE, (REAL)CANVAS_HEIGHT);
+    RectF rect(0, 0, (REAL)g_WINDOW_SIZE, (REAL)(g_WINDOW_SIZE - TOOLBAR_HEIGHT));
     graphics.DrawString(L"Double Click\nto Load Image", -1, &font, rect, &format, &textBrush);
 }
 
@@ -338,6 +370,58 @@ std::wstring OpenFileDialog()
     }
 
     return L"";
+}
+
+void ResizeWindow(int newSize)
+{
+    if (newSize <= 0) return;
+
+    g_WINDOW_SIZE = newSize;
+
+    // Get current window position
+    RECT rect;
+    GetWindowRect(g_hWnd, &rect);
+    int x = rect.left;
+    int y = rect.top;
+
+    // Resize main window
+    SetWindowPos(g_hWnd, NULL, x, y, g_WINDOW_SIZE, g_WINDOW_SIZE, SWP_NOZORDER);
+
+    // Resize canvas
+    SetWindowPos(g_hCanvas, NULL, 0, 0, g_WINDOW_SIZE, g_WINDOW_SIZE - TOOLBAR_HEIGHT, SWP_NOZORDER);
+
+    // Resize and reposition toolbar and buttons
+    HWND hToolbar = GetDlgItem(g_hWnd, 1002);
+    if (hToolbar)
+    {
+        SetWindowPos(hToolbar, NULL, 0, g_WINDOW_SIZE - TOOLBAR_HEIGHT, g_WINDOW_SIZE, TOOLBAR_HEIGHT, SWP_NOZORDER);
+    }
+
+    // Resize and reposition info label
+    SetWindowPos(g_hInfoLabel, NULL, 3, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 4, g_WINDOW_SIZE - 70, TOOLBAR_HEIGHT - 8, SWP_NOZORDER);
+
+    // Resize and reposition load button
+    SetWindowPos(g_hLoadBtn, NULL, g_WINDOW_SIZE - 65, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 3, 30, TOOLBAR_HEIGHT - 6, SWP_NOZORDER);
+
+    // Resize and reposition close button
+    SetWindowPos(g_hCloseBtn, NULL, g_WINDOW_SIZE - 30, g_WINDOW_SIZE - TOOLBAR_HEIGHT + 3, 25, TOOLBAR_HEIGHT - 6, SWP_NOZORDER);
+
+    // Redraw everything
+    InvalidateRect(g_hWnd, NULL, FALSE);
+    UpdateWindow(g_hWnd);
+}
+
+void ShowSizeMenu(HWND hWnd, int x, int y)
+{
+    HMENU hMenu = CreatePopupMenu();
+    
+    AppendMenuW(hMenu, MFT_STRING, ID_SIZE_100, L"100×100");
+    AppendMenuW(hMenu, MFT_STRING, ID_SIZE_150, L"150×150");
+    AppendMenuW(hMenu, MFT_STRING, ID_SIZE_200, L"200×200");
+    AppendMenuW(hMenu, MFT_STRING, ID_SIZE_250, L"250×250");
+
+    TrackPopupMenu(hMenu, TPM_LEFTBUTTON, x, y, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
@@ -376,7 +460,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         L"Quadrato Mobile - Image Viewer",
         WS_POPUP | WS_VISIBLE,
         500, 300,
-        WINDOW_SIZE, WINDOW_SIZE,
+        g_WINDOW_SIZE, g_WINDOW_SIZE,
         NULL,
         NULL,
         hInstance,
